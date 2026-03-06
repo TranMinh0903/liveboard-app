@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/message.dart';
 import '../services/message_service.dart';
+import '../services/local_message_service.dart';
 
 class LiveBoardScreen extends StatefulWidget {
   const LiveBoardScreen({super.key});
@@ -18,6 +19,7 @@ class _LiveBoardScreenState extends State<LiveBoardScreen> {
   List<Message> _messages = [];
   bool _isLoading = false;
   bool _isSending = false;
+  bool _useSQLite = false; // Toggle: false = API, true = SQLite
   Timer? _refreshTimer;
 
   @override
@@ -41,7 +43,9 @@ class _LiveBoardScreenState extends State<LiveBoardScreen> {
   }
 
   Future<void> _loadMessages() async {
-    final messages = await MessageService.getAllMessages();
+    final messages = _useSQLite
+        ? await LocalMessageService.getAllMessages()
+        : await MessageService.getAllMessages();
     if (mounted) {
       setState(() {
         _messages = messages;
@@ -66,10 +70,9 @@ class _LiveBoardScreenState extends State<LiveBoardScreen> {
 
     setState(() => _isSending = true);
 
-    final success = await MessageService.createMessage(
-      senderName: name,
-      content: content,
-    );
+    final success = _useSQLite
+        ? await LocalMessageService.createMessage(senderName: name, content: content)
+        : await MessageService.createMessage(senderName: name, content: content);
 
     setState(() => _isSending = false);
 
@@ -93,7 +96,9 @@ class _LiveBoardScreenState extends State<LiveBoardScreen> {
   }
 
   Future<void> _likeMessage(int id) async {
-    final success = await MessageService.likeMessage(id);
+    final success = _useSQLite
+        ? await LocalMessageService.likeMessage(id)
+        : await MessageService.likeMessage(id);
     if (success) {
       await _loadMessages();
     }
@@ -119,7 +124,9 @@ class _LiveBoardScreenState extends State<LiveBoardScreen> {
     );
 
     if (confirmed == true) {
-      final success = await MessageService.deleteMessage(id);
+      final success = _useSQLite
+          ? await LocalMessageService.deleteMessage(id)
+          : await MessageService.deleteMessage(id);
       if (success) {
         await _loadMessages();
       }
@@ -230,6 +237,55 @@ class _LiveBoardScreenState extends State<LiveBoardScreen> {
             ),
           ),
           const SizedBox(width: 8),
+          // Toggle API / SQLite
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _useSQLite = !_useSQLite;
+                _messages = [];
+                _isLoading = true;
+              });
+              _loadMessages();
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: _useSQLite
+                    ? const Color(0xFF10B981).withOpacity(0.15)
+                    : const Color(0xFF8B5CF6).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _useSQLite
+                      ? const Color(0xFF10B981).withOpacity(0.4)
+                      : const Color(0xFF8B5CF6).withOpacity(0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _useSQLite ? Icons.storage_rounded : Icons.cloud_rounded,
+                    size: 14,
+                    color: _useSQLite
+                        ? const Color(0xFF10B981)
+                        : const Color(0xFF8B5CF6),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _useSQLite ? 'SQLite' : 'API',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: _useSQLite
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFF8B5CF6),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
           // Refresh button
           IconButton(
             onPressed: () {
